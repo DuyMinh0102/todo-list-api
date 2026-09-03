@@ -4,14 +4,14 @@
     <meta charset="utf-8" />
     <title>Login</title>
     <link href="../css/login.css" rel="stylesheet" />
-    <script defer src="../ts/app.ts"></script>
+    <script defer src="../js/app.js"></script>
   </head>
 
   <body>
-    <button>
-      <a href="register.html">Register</a>
+    <button id="switchToRegister">
+      <a href="register">Register</a>
     </button>
-    <form method="get">
+    <form action="/submit-form" method="POST">
       <p>
         <label for="name">Name: </label>
         <input type="text" name="name" id="name" required />
