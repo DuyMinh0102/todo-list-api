@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+data/
 
 *.json
 !package.json
@@ -9,15 +10,15 @@ build/
 *.db
 *.sqlite
 
-.env 
+.env
 .env.*
 !.env.example
 
-*.log 
+*.log
 npm-debug.log*
 
 .DS_Store
-Thumbs.db 
+Thumbs.db
 .vscode/*
 !.vscode/settings.json
 .idea/
