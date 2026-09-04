@@ -5,7 +5,10 @@ form.addEventListener("submit", (event) => {
 
   const data = new FormData(form);
 
-  const formProps = Object.fromEntries(data);
+  const regName = data.get("username");
+  const regPWD = data.get("pwd");
 
-  console.log(formProps);
+  if (!regName || !regPWD) {
+    return;
+  }
 });

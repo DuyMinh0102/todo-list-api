@@ -4,21 +4,21 @@
     <meta charset="utf-8" />
     <title>Login</title>
     <link href="../css/login.css" rel="stylesheet" />
-    <script defer src="../js/app.js"></script>
+    <script src="../js/login_check.js" defer></script>
   </head>
 
   <body>
     <button id="switchToRegister">
       <a href="register">Register</a>
     </button>
-    <form action="/submit-form" method="POST">
+    <form action="/login" method="POST">
       <p>
-        <label for="name">Name: </label>
-        <input type="text" name="name" id="name" required />
+        <label for="username">Name: </label>
+        <input type="text" name="username" id="username" required />
       </p>
       <p>
-        <label for="passwd">Password: </label>
-        <input type="password" name="passwd" id="passwd" required />
+        <label for="pwd">Password: </label>
+        <input type="password" name="pwd" id="pwd" required />
       </p>
       <p>
         <button>Login</button>

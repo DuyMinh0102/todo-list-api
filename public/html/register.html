@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-US">
+  <head>
+    <meta charset="utf-8" />
+    <title>Register</title>
+    <link href="../css/login.css" rel="stylesheet" />
+    <script src="../js/register_check.js" defer></script>
+  </head>
+
+  <body>
+    <button id="switchToLogin">
+      <a href="login">Login</a>
+    </button>
+    <form action="/register" method="POST">
+      <p>
+        <label for="username">Name: </label>
+        <input
+          type="text"
+          name="username"
+          id="username"
+          minlength="6"
+          maxlength="20"
+          required
+          title="Must be between 6 and 20 characters long"
+          required
+        />
+      </p>
+
+      <p>
+        <label for="email">Email: </label>
+        <input type="email" name="email" id="email" required />
+      </p>
+      <p>
+        <label for="pwd">Password: </label>
+        <input
+          type="password"
+          name="pwd"
+          id="pwd"
+          minlength="8"
+          maxlength="20"
+          pattern="(?=.*\d).+"
+          required
+          title="Must be between 8 and 20 characters long, with at least 1 number"
+          required
+        />
+      </p>
+      <p>
+        <label for="confirm_pwd">Confirm password: </label>
+        <input
+          type="password"
+          name="confirm_pwd"
+          id="confirm_pwd"
+          minlength="8"
+          maxlength="20"
+          pattern="(?=.*\d).+"
+          required
+          title="Must be between 8 and 20 characters long, with at least 1 number"
+          required
+        />
+      </p>
+      <p>
+        <button>Register</button>
+      </p>
+    </form>
+  </body>
+</html>
