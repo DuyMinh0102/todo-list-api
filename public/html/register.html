@@ -11,7 +11,12 @@
     <button id="switchToLogin">
       <a href="login">Login</a>
     </button>
+
     <form action="/register" method="POST">
+      <p class="error-container">
+        <span id="form-error" class="error-text"></span>
+      </p>
+
       <p>
         <label for="username">Name: </label>
         <input
@@ -20,16 +25,18 @@
           id="username"
           minlength="6"
           maxlength="20"
-          required
           title="Must be between 6 and 20 characters long"
           required
         />
+        <span id="username-error" class="error-text"></span>
       </p>
 
       <p>
         <label for="email">Email: </label>
         <input type="email" name="email" id="email" required />
+        <span id="email-error" class="error-text"></span>
       </p>
+
       <p>
         <label for="pwd">Password: </label>
         <input
@@ -39,11 +46,12 @@
           minlength="8"
           maxlength="20"
           pattern="(?=.*\d).+"
-          required
           title="Must be between 8 and 20 characters long, with at least 1 number"
           required
         />
+        <span id="pwd-error" class="error-text"></span>
       </p>
+
       <p>
         <label for="confirm_pwd">Confirm password: </label>
         <input
@@ -53,13 +61,14 @@
           minlength="8"
           maxlength="20"
           pattern="(?=.*\d).+"
-          required
           title="Must be between 8 and 20 characters long, with at least 1 number"
           required
         />
+        <span id="confirm-pwd-error" class="error-text"></span>
       </p>
+
       <p>
-        <button>Register</button>
+        <button type="submit">Register</button>
       </p>
     </form>
   </body>

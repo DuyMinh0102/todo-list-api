@@ -11,17 +11,26 @@
     <button id="switchToRegister">
       <a href="register">Register</a>
     </button>
+
     <form action="/login" method="POST">
+      <p class="error-container">
+        <span id="form-error" class="error-text"></span>
+      </p>
+
       <p>
         <label for="username">Name: </label>
         <input type="text" name="username" id="username" required />
+        <span id="username-error" class="error-text"></span>
       </p>
+
       <p>
         <label for="pwd">Password: </label>
         <input type="password" name="pwd" id="pwd" required />
+        <span id="pwd-error" class="error-text"></span>
       </p>
+
       <p>
-        <button>Login</button>
+        <button type="submit">Login</button>
       </p>
     </form>
   </body>
