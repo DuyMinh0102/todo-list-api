@@ -1,10 +1,18 @@
 const form = document.querySelector("form");
 const formError = document.querySelector("#form-error");
 
+function changeContent(targetElement, content){
+  if (targetElement) targetElement.textContent = content;
+}
+
+function sleep(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  if (formError) formError.textContent = "";
+  changeContent(formError, "");
 
   const data = new URLSearchParams(new FormData(form));
 
@@ -14,7 +22,7 @@ form.addEventListener("submit", async (event) => {
   console.log(regName, regPWD);
 
   if (!regName || !regPWD) {
-    if (formError) formError.textContent = "Pleaes fill in all fields.";
+    changeContent(formError, "Please fill in all fields.");
     return;
   }
 
@@ -29,13 +37,31 @@ form.addEventListener("submit", async (event) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      if (formError) formError.textContent = errorText;
+      changeContent(formError, errorText);
       return;
     }
 
-    window.location.href = "home";
+    let seconds = 3;
+    const renderSuccessPage = () => {
+      document.body.innerHTML = `
+      <div style="text-align: center; margin-top: 50px; font-family: sans-serif;">
+        <h2>Login successfully</h2>
+        <p>Redirecting to login page in <strong>${seconds}</strong> seconds...</p>
+      </div>
+    `;
+    };
+
+    renderSuccessPage();
+
+    const timer = setInterval(() => {
+      if (seconds > 0) renderSuccessPage();
+      else {
+        clearInterval(timer);
+        window.location.href = "/home";
+      }
+    }, 1000);
   } catch (error) {
     console.error(error.message);
-    if (formError) formError.textContent = "Unable to connect to server";
+    changeContent(formError, "Unable to connect to server.");
   }
 });

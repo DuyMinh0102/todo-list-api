@@ -1,10 +1,14 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as http from "node:http";
+import * as crypto from "node:crypto"
 import Database from "better-sqlite3";
 
 const dbDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dbDir, "app.db");
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = "localhost";
+const MAX_BODY_SIZE = 1e6;
 
 if (!fs.existsSync(dbPath)) {
   fs.mkdirSync(dbDir, { recursive: true });
@@ -13,20 +17,15 @@ if (!fs.existsSync(dbPath)) {
 const db = new Database(dbPath, { verbose: console.log });
 db.pragma("journal_mode = WAL");
 
-interface LoginForm {
-  userName: string;
-  pwd: string;
-}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )  
+`)
 
-interface RegisterForm {
-  userName: string;
-  email: string;
-  pwd: string;
-  confirm_pwd: string;
-}
-
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = "localhost";
 
 function returnNeededFile(res: http.ServerResponse<http.IncomingMessage>, filename: string, filetype: string): void {
   const filePath = path.join(process.cwd(), "public", filetype, filename);
@@ -44,10 +43,93 @@ function returnNeededFile(res: http.ServerResponse<http.IncomingMessage>, filena
   });
 }
 
+async function handleRegistrationQuery(req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage> ){
+  let body : Buffer[] = [];
+  let bodySize = 0;
+
+  req
+    .on('error', err => {
+      console.error(err);
+
+      if (!res.headersSent){
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Bad request");
+      }
+    })
+    .on('data', chunk => {
+      bodySize += chunk.length;
+
+      if (bodySize > MAX_BODY_SIZE) {
+        res.writeHead(413, {"Content-Type": "text/plain"});
+        res.end("Payload too large");
+        req.destroy();
+      }
+
+      body.push(chunk);
+    })
+    .on('end', () => {
+      if (res.writableEnded) return;
+      const parsedBody = new URLSearchParams(Buffer.concat(body).toString());
+      const username = parsedBody.get("username"), email = parsedBody.get("email"), pwd = parsedBody.get("pwd"), confirmPwd = parsedBody.get("confirm_pwd");
+
+      console.log(parsedBody);
+
+      if (!username || !email || !pwd || !confirmPwd){
+        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("All fields must be filled.");
+        return;
+      }
+
+      // db query
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("Registration completed, redirecting to login page in 3 seconds...");
+    })
+}
+
+async function handleLoginQuery(req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage> ){
+  let body : Buffer[] = [];
+  let bodySize = 0;
+
+  req
+    .on('error', err => {
+      console.error(err);
+
+      if (!res.headersSent){
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Bad request");
+      }
+    })
+    .on('data', chunk => {
+      bodySize += chunk.length;
+
+      if (bodySize > MAX_BODY_SIZE) {
+        res.writeHead(413, {"Content-Type": "text/plain"});
+        res.end("Payload too large");
+        req.destroy();
+      }
+
+      body.push(chunk);
+    })
+    .on('end', () => {
+      if (res.writableEnded) return;
+      const parsedBody = new URLSearchParams(Buffer.concat(body).toString());
+      const receivedUsername = parsedBody.get("username"), receivedPwd = parsedBody.get("pwd");
+
+      if (!receivedUsername || !receivedPwd){
+        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Username and Password are required.");
+        return;
+      }
+
+      // Database query
+    })
+
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("Login successfully, redirecting to homepage in 3 seconds...");
+}
+
 const server = http.createServer((req, res) => {
   const { headers, method, url } = req;
-
-  console.log(method, url);
 
   switch (`${method} ${url}`) {
     case "GET /css/login.css":
@@ -69,6 +151,14 @@ const server = http.createServer((req, res) => {
 
     case "GET /register":
       returnNeededFile(res, "register.html", "html");
+      break;
+
+    case "POST /login":
+      handleLoginQuery(req, res);
+      break;
+
+    case "POST /register":
+      handleRegistrationQuery(req, res);
       break;
 
     default:
