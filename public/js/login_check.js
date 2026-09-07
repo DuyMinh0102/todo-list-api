@@ -1,12 +1,12 @@
 const form = document.querySelector("form");
 const formError = document.querySelector("#form-error");
 
-function changeContent(targetElement, content){
+function changeContent(targetElement, content) {
   if (targetElement) targetElement.textContent = content;
 }
 
-function sleep(ms){
-  return new Promise(resolve => setTimeout(resolve, ms));
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 form.addEventListener("submit", async (event) => {
@@ -54,6 +54,7 @@ form.addEventListener("submit", async (event) => {
     renderSuccessPage();
 
     const timer = setInterval(() => {
+      --seconds;
       if (seconds > 0) renderSuccessPage();
       else {
         clearInterval(timer);
