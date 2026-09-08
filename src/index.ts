@@ -203,6 +203,10 @@ const server = http.createServer((req, res) => {
       returnNeededFile(res, "register_check.js", "js");
       break;
 
+    case "GET /js/index.js":
+      returnNeededFile(res, "index.js", "js");
+      break;
+
     case "GET /":
     case "GET /login":
       returnNeededFile(res, "login.html", "html");
