@@ -26,6 +26,7 @@ interface User {
 
 const db = new Database(dbPath, { verbose: console.log });
 db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -39,7 +40,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     description TEXT,
-    user TEXT NOT NULL,
+    userid INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS sessions (
@@ -52,7 +53,7 @@ db.exec(`
 `);
 
 const insertUserData = db.prepare(`INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)`);
-const insertTaskData = db.prepare(`INSERT INTO tasks (title, description, user) VALUES (?, ?, ?)`);
+const insertTaskData = db.prepare(`INSERT INTO tasks (title, description, userid) VALUES (?, ?, ?)`);
 const insertSession = db.prepare(`INSERT INTO sessions (id, userid, expire) VALUES (?, ?, ?)`);
 
 const getUserHash = db.prepare(`SELECT password_hash, salt FROM users WHERE username = ?`);
@@ -73,6 +74,18 @@ async function hashPassword(
       });
     });
   });
+}
+
+function parseCookie(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+
+  cookieHeader.split(";").forEach((cookie) => {
+    const [name, ...rest] = cookie.split("=");
+    if (name) cookies[name.trim()] = rest.join("=").trim();
+  });
+
+  return cookies;
 }
 
 function returnNeededFile(res: ServerResponse<IncomingMessage>, filename: string, filetype: string): void {
@@ -129,26 +142,30 @@ async function handleRegistrationQuery(req: IncomingMessage, res: ServerResponse
         return;
       }
 
-      const checkUserExist = getUserHash.get(username);
+      try {
+        const checkUserExist = getUserHash.get(username);
+        if (checkUserExist) {
+          res.writeHead(409, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Username already exists.");
+          return;
+        }
 
-      if (checkUserExist) {
-        res.writeHead(409, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Username already existed");
-        return;
+        if (pwd.trim() !== confirmPwd.trim()) {
+          res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Confirm password does not match");
+          return;
+        }
+
+        const insertPwd = await hashPassword(pwd);
+        insertUserData.run(username, insertPwd.password_hash, insertPwd.salt);
+
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end("Registration completed, redirecting to login page in 3 seconds...");
+      } catch (err) {
+        console.error("Registration error:", err);
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal Server Error");
       }
-
-      if (pwd.trim() !== confirmPwd.trim()) {
-        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Confirm password does not match");
-        return;
-      }
-
-      const insertPwd = await hashPassword(pwd);
-
-      insertUserData.run(username, insertPwd.password_hash, insertPwd.salt);
-
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("Registration completed, redirecting to login page in 3 seconds...");
     });
 }
 
@@ -188,30 +205,39 @@ async function handleLoginQuery(req: IncomingMessage, res: ServerResponse<Incomi
         return;
       }
 
-      const queryUser = getUserHash.get(username) as hashedPwd | undefined;
-      if (!queryUser) {
-        res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Username does not exist");
-        return;
+      try {
+        const queryUser = getUserHash.get(username) as hashedPwd | undefined;
+        if (!queryUser) {
+          res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Username does not exist");
+          return;
+        }
+
+        const currentPwdHash = await hashPassword(pwd, queryUser.salt);
+
+        if (currentPwdHash.password_hash !== queryUser.password_hash) {
+          res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Wrong password");
+          return;
+        }
+
+        const sessionID = crypto.randomBytes(32).toString("hex");
+        const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+        const currentUser = getUserInfo.get(username) as User;
+
+        insertSession.run(sessionID, currentUser.id, expireAt);
+
+        res.writeHead(200, {
+          "Set-Cookie": `session_id=${sessionID}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`,
+          "Content-Type": "text/plain",
+        });
+        res.end("Login successfully, redirecting to homepage in 3 seconds...");
+      } catch (err) {
+        console.error("Login error:", err);
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal Server Error");
       }
-
-      const currentPwdHash = await hashPassword(pwd, queryUser.salt);
-
-      if (currentPwdHash.password_hash !== queryUser.password_hash) {
-        res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Wrong password");
-        return;
-      }
-
-      const sessionID = crypto.randomBytes(32).toString("hex");
-      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-      const currentUser = getUserInfo.get(username) as User;
-
-      insertSession.run(sessionID, currentUser.id, expireAt);
-
-      res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("Login successfully, redirecting to homepage in 3 seconds...");
     });
 }
 
@@ -252,8 +278,65 @@ async function handleAddTaskQuery(req: IncomingMessage, res: ServerResponse<Inco
         return;
       }
 
-      insertTaskData.run(taskTitle, taskDesc, "");
+      const cookies = parseCookie(req.headers.cookie);
+      const sessionID = cookies["session_id"];
+
+      if (!sessionID) {
+        res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Unauthorized: Missing session cookie");
+        return;
+      }
+
+      try {
+        const stmt = db.prepare(
+          `SELECT users.id, users.username FROM sessions JOIN users ON sessions.userid = users.id WHERE sessions.id = ? AND datetime(sessions.expire) > datetime('now')`,
+        );
+        const currentUser = stmt.get(sessionID) as User | undefined;
+
+        if (!currentUser) {
+          res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("Unauthorized: Invalid or expired session");
+          return;
+        }
+
+        insertTaskData.run(taskTitle, taskDesc, currentUser.id);
+
+        res.writeHead(201, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Task added successfully");
+      } catch (err) {
+        console.error("Task creation error:", err);
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal Server Error");
+      }
     });
+}
+
+function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+  const cookies = parseCookie(req.headers.cookie);
+  const sessionID = cookies["session_id"];
+
+  if (!sessionID) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized" }));
+    return;
+  }
+
+  try {
+    const stmt = db.prepare(`
+      SELECT tasks.id, tasks.title, tasks.description, tasks.created_at 
+      FROM tasks 
+      JOIN sessions ON tasks.userid = sessions.userid 
+      WHERE sessions.id = ? AND datetime(sessions.expire) > datetime('now')
+    `);
+    const tasks = stmt.all(sessionID);
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(tasks));
+  } catch (err) {
+    console.error("Fetch tasks error:", err);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Internal Server Error" }));
+  }
 }
 
 const server = createServer((req, res) => {
@@ -262,6 +345,10 @@ const server = createServer((req, res) => {
   switch (`${method} ${url}`) {
     case "GET /css/login.css":
       returnNeededFile(res, "login.css", "css");
+      break;
+
+    case "GET /css/style.css":
+      returnNeededFile(res, "style.css", "css");
       break;
 
     case "GET /js/login_check.js":
@@ -287,6 +374,10 @@ const server = createServer((req, res) => {
 
     case "GET /home":
       returnNeededFile(res, "index.html", "html");
+      break;
+
+    case "GET /tasks":
+      handleGetTasksQuery(req, res);
       break;
 
     case "POST /login":

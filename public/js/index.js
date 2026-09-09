@@ -37,6 +37,8 @@ form.addEventListener("submit", async (event) => {
       changeContent(formError, textError);
       return;
     }
+
+    modal.close();
   } catch (error) {
     console.error(error.message);
     changeContent(formError, "Unable to connect to server.");
