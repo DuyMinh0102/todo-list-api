@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as http from "node:http";
+import { ServerResponse, IncomingMessage, createServer } from "node:http";
 import * as crypto from "node:crypto";
 import Database from "better-sqlite3";
 
@@ -19,6 +19,11 @@ interface hashedPwd {
   salt: string;
 }
 
+interface User {
+  id: number;
+  username: string;
+}
+
 const db = new Database(dbPath, { verbose: console.log });
 db.pragma("journal_mode = WAL");
 
@@ -29,12 +34,29 @@ db.exec(`
     password_hash TEXT NOT NULL,
     salt TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )  
+  );
+  CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    user TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    userid INTEGER NOT NULL,
+    expire DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(userid) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
-const insertData = db.prepare(`INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)`);
+const insertUserData = db.prepare(`INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)`);
+const insertTaskData = db.prepare(`INSERT INTO tasks (title, description, user) VALUES (?, ?, ?)`);
+const insertSession = db.prepare(`INSERT INTO sessions (id, userid, expire) VALUES (?, ?, ?)`);
 
 const getUserHash = db.prepare(`SELECT password_hash, salt FROM users WHERE username = ?`);
+const getUserInfo = db.prepare(`SELECT id, username FROM users WHERE username = ?`);
 
 async function hashPassword(
   pwd: string,
@@ -53,12 +75,12 @@ async function hashPassword(
   });
 }
 
-function returnNeededFile(res: http.ServerResponse<http.IncomingMessage>, filename: string, filetype: string): void {
+function returnNeededFile(res: ServerResponse<IncomingMessage>, filename: string, filetype: string): void {
   const filePath = path.join(process.cwd(), "public", filetype, filename);
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
-      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Internal Server Error: Unable to load page");
       return;
     }
@@ -69,7 +91,7 @@ function returnNeededFile(res: http.ServerResponse<http.IncomingMessage>, filena
   });
 }
 
-async function handleRegistrationQuery(req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>) {
+async function handleRegistrationQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
   let body: Buffer[] = [];
   let bodySize = 0;
 
@@ -122,16 +144,15 @@ async function handleRegistrationQuery(req: http.IncomingMessage, res: http.Serv
       }
 
       const insertPwd = await hashPassword(pwd);
-      const currentTime = new Date().toLocaleDateString();
 
-      insertData.run(username, insertPwd.password_hash, insertPwd.salt, currentTime);
+      insertUserData.run(username, insertPwd.password_hash, insertPwd.salt);
 
       res.writeHead(200, { "Content-Type": "text/plain" });
       res.end("Registration completed, redirecting to login page in 3 seconds...");
     });
 }
 
-async function handleLoginQuery(req: http.IncomingMessage, res: http.ServerResponse<http.IncomingMessage>) {
+async function handleLoginQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
   let body: Buffer[] = [];
   let bodySize = 0;
 
@@ -182,12 +203,60 @@ async function handleLoginQuery(req: http.IncomingMessage, res: http.ServerRespo
         return;
       }
 
+      const sessionID = crypto.randomBytes(32).toString("hex");
+      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const currentUser = getUserInfo.get(username) as User;
+
+      insertSession.run(sessionID, currentUser.id, expireAt);
+
       res.writeHead(200, { "Content-Type": "text/plain" });
       res.end("Login successfully, redirecting to homepage in 3 seconds...");
     });
 }
 
-const server = http.createServer((req, res) => {
+async function handleAddTaskQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>): Promise<void> {
+  let body: Buffer[] = [];
+  let bodySize = 0;
+
+  req
+    .on("error", (err) => {
+      console.error(err);
+
+      if (!res.headersSent) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Bad request");
+      }
+    })
+    .on("data", (chunk) => {
+      bodySize += chunk.length;
+
+      if (bodySize > MAX_BODY_SIZE) {
+        res.writeHead(413, { "Content-Type": "text/plain" });
+        res.end("Payload too large");
+        req.destroy();
+      }
+
+      body.push(chunk);
+    })
+    .on("end", async () => {
+      if (res.writableEnded) return;
+      const parsedBody = new URLSearchParams(Buffer.concat(body).toString());
+
+      const taskTitle = parsedBody.get("title");
+      const taskDesc = parsedBody.get("description");
+
+      if (!taskTitle) {
+        res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Title is required.");
+        return;
+      }
+
+      insertTaskData.run(taskTitle, taskDesc, "");
+    });
+}
+
+const server = createServer((req, res) => {
   const { headers, method, url } = req;
 
   switch (`${method} ${url}`) {
@@ -222,10 +291,15 @@ const server = http.createServer((req, res) => {
 
     case "POST /login":
       handleLoginQuery(req, res);
+
       break;
 
     case "POST /register":
       handleRegistrationQuery(req, res);
+      break;
+
+    case "POST /add-task":
+      handleAddTaskQuery(req, res);
       break;
 
     default:
