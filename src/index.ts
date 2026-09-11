@@ -1,17 +1,17 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { existsSync, mkdirSync, readFile } from "node:fs";
+import { join } from "node:path";
 import { ServerResponse, IncomingMessage, createServer } from "node:http";
-import * as crypto from "node:crypto";
+import { randomBytes, pbkdf2 } from "node:crypto";
 import Database from "better-sqlite3";
 
-const dbDir = path.join(process.cwd(), "data");
-const dbPath = path.join(dbDir, "app.db");
+const dbDir = join(process.cwd(), "data");
+const dbPath = join(dbDir, "app.db");
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "localhost";
 const MAX_BODY_SIZE = 1e6;
 
-if (!fs.existsSync(dbPath)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+if (!existsSync(dbPath)) {
+  mkdirSync(dbDir, { recursive: true });
 }
 
 interface hashedPwd {
@@ -41,6 +41,7 @@ db.exec(`
     title TEXT NOT NULL,
     description TEXT,
     userid INTEGER NOT NULL,
+    status STRING NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS sessions (
@@ -53,19 +54,25 @@ db.exec(`
 `);
 
 const insertUserData = db.prepare(`INSERT INTO users (username, password_hash, salt) VALUES (?, ?, ?)`);
-const insertTaskData = db.prepare(`INSERT INTO tasks (title, description, userid) VALUES (?, ?, ?)`);
+const insertTaskData = db.prepare(`INSERT INTO tasks (title, description, userid, status) VALUES (?, ?, ?, ?)`);
 const insertSession = db.prepare(`INSERT INTO sessions (id, userid, expire) VALUES (?, ?, ?)`);
 
 const getUserHash = db.prepare(`SELECT password_hash, salt FROM users WHERE username = ?`);
 const getUserInfo = db.prepare(`SELECT id, username FROM users WHERE username = ?`);
+const getSessionInfo = db.prepare(
+  `SELECT users.id, users.username FROM sessions JOIN users ON sessions.userid = users.id WHERE sessions.id = ? AND datetime(sessions.expire) > datetime('now')`,
+);
+
+const deleteTask = db.prepare(`DELETE FROM tasks where ID = ? AND userid = ?`);
+const deleteSession = db.prepare(`DELETE FROM sessions where id = ?`);
 
 async function hashPassword(
   pwd: string,
-  _salt: string = crypto.randomBytes(128).toString("base64"),
+  _salt: string = randomBytes(128).toString("base64"),
   _iterations: number = 10000,
 ): Promise<hashedPwd> {
   return new Promise((resolve, reject) => {
-    crypto.pbkdf2(pwd, _salt, _iterations, 64, "sha512", (err, derivedKey) => {
+    pbkdf2(pwd, _salt, _iterations, 64, "sha512", (err, derivedKey) => {
       if (err) return reject(err);
 
       resolve({
@@ -89,9 +96,9 @@ function parseCookie(cookieHeader: string | undefined): Record<string, string> {
 }
 
 function returnNeededFile(res: ServerResponse<IncomingMessage>, filename: string, filetype: string): void {
-  const filePath = path.join(process.cwd(), "public", filetype, filename);
+  const filePath = join(process.cwd(), "public", filetype, filename);
 
-  fs.readFile(filePath, (err, content) => {
+  readFile(filePath, (err, content) => {
     if (err) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("Internal Server Error: Unable to load page");
@@ -221,7 +228,7 @@ async function handleLoginQuery(req: IncomingMessage, res: ServerResponse<Incomi
           return;
         }
 
-        const sessionID = crypto.randomBytes(32).toString("hex");
+        const sessionID = randomBytes(32).toString("hex");
         const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
         const currentUser = getUserInfo.get(username) as User;
@@ -288,10 +295,7 @@ async function handleAddTaskQuery(req: IncomingMessage, res: ServerResponse<Inco
       }
 
       try {
-        const stmt = db.prepare(
-          `SELECT users.id, users.username FROM sessions JOIN users ON sessions.userid = users.id WHERE sessions.id = ? AND datetime(sessions.expire) > datetime('now')`,
-        );
-        const currentUser = stmt.get(sessionID) as User | undefined;
+        const currentUser = getSessionInfo.get(sessionID) as User | undefined;
 
         if (!currentUser) {
           res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
@@ -299,7 +303,7 @@ async function handleAddTaskQuery(req: IncomingMessage, res: ServerResponse<Inco
           return;
         }
 
-        insertTaskData.run(taskTitle, taskDesc, currentUser.id);
+        insertTaskData.run(taskTitle, taskDesc, currentUser.id, "in-progress");
 
         res.writeHead(201, { "Content-Type": "text/plain; charset=utf-8" });
         res.end("Task added successfully");
@@ -315,7 +319,10 @@ function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<IncomingM
   const cookies = parseCookie(req.headers.cookie);
   const sessionID = cookies["session_id"];
 
+  console.log(sessionID);
+
   if (!sessionID) {
+    res.statusCode = 401;
     res.writeHead(401, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Unauthorized" }));
     return;
@@ -323,7 +330,7 @@ function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<IncomingM
 
   try {
     const stmt = db.prepare(`
-      SELECT tasks.id, tasks.title, tasks.description, tasks.created_at 
+      SELECT tasks.id, tasks.title, tasks.description, tasks.created_at, tasks.status 
       FROM tasks 
       JOIN sessions ON tasks.userid = sessions.userid 
       WHERE sessions.id = ? AND datetime(sessions.expire) > datetime('now')
@@ -339,10 +346,86 @@ function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<IncomingM
   }
 }
 
+function handleDeleteTaskQuery(
+  req: IncomingMessage,
+  res: ServerResponse<IncomingMessage>,
+  taskIDStr: string | undefined,
+) {
+  const taskID = Number(taskIDStr);
+
+  if (!taskID || isNaN(taskID)) {
+    res.writeHead(400, { "Content-Type": "text/plain" });
+    res.end("Valid task ID is required in the URL.");
+    return;
+  }
+
+  const cookies = parseCookie(req.headers.cookie);
+  const sessionID = cookies["session_id"];
+
+  if (!sessionID) {
+    res.writeHead(401, { "Content-Type": "text/plain" });
+    res.end("Unauthorized.");
+    return;
+  }
+
+  try {
+    const currentUser = getSessionInfo.get(sessionID) as User | undefined;
+
+    if (!currentUser) {
+      res.writeHead(401, { "Content-Type": "text/plain" });
+      res.end("Unauthorized: Invalid session");
+      return;
+    }
+
+    const info = deleteTask.run(taskID, currentUser.id);
+
+    if (info.changes === 0) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Task not found or you do not have permission to delete it");
+      return;
+    }
+
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    // Fixed string interpolation by using backticks (`)
+    res.end(`Task deleted successfully. ID: ${taskID}`);
+  } catch (err) {
+    console.error("Delete task error: ", err);
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("Internal Server Error");
+  }
+}
+
+function invalidateUserSession(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+  const cookies = parseCookie(req.headers.cookie);
+  const sessionID = cookies["session_id"];
+
+  if (!sessionID) {
+    res.writeHead(401, { "Content-Type": "text/plain" });
+    res.end("Already logged out or unauthorized.");
+    return;
+  }
+
+  try {
+    deleteSession.run(sessionID);
+
+    res.writeHead(200, {
+      "Set-Cookie": "session_id=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",
+      "Content-Type": "text/plain",
+    });
+    res.end("Logged out successfully");
+  } catch (err) {
+    console.error("Logout error: ", err);
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("Internal Server Error");
+  }
+}
+
 const server = createServer((req, res) => {
   const { headers, method, url } = req;
 
-  switch (`${method} ${url}`) {
+  const normalizedURL = url?.replace(/\/\d+$/, "/:id");
+
+  switch (`${method} ${normalizedURL}`) {
     case "GET /css/login.css":
       returnNeededFile(res, "login.css", "css");
       break;
@@ -391,6 +474,15 @@ const server = createServer((req, res) => {
 
     case "POST /add-task":
       handleAddTaskQuery(req, res);
+      break;
+
+    case "DELETE /remove-session":
+      invalidateUserSession(req, res);
+      break;
+
+    case "DELETE /delete-task/:id":
+      const taskID = url?.split("/").pop();
+      handleDeleteTaskQuery(req, res, taskID);
       break;
 
     default:

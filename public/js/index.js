@@ -5,6 +5,7 @@ const form = document.querySelector("#addTaskForm");
 const formError = document.querySelector("#task-from-error");
 const taskGrid = document.querySelector("#task-grid");
 const taskTemplate = document.querySelector("#task-card-template");
+const logOutButton = document.querySelector("#logoutBtn");
 
 function changeContent(targetElement, content) {
   if (targetElement) targetElement.textContent = content;
@@ -12,6 +13,20 @@ function changeContent(targetElement, content) {
 
 openBtn.addEventListener("click", () => modal.showModal());
 closeBtn.addEventListener("click", () => modal.close());
+
+logOutButton.addEventListener("click", async () => {
+  const response = await fetch("/remove-session", {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    const textError = await response.text();
+    changeContent(formError, textError);
+    return;
+  }
+
+  window.location.href = "/login";
+});
 
 async function loadTasks() {
   try {
@@ -49,9 +64,49 @@ function renderTasks(tasks) {
     clone.querySelector(".task-title").textContent = task.title;
     clone.querySelector(".task-description").textContent = task.description || "No description provided";
 
+    const deleteBtn = clone.querySelector(".btn-delete");
+    deleteBtn.dataset.id = task.id;
+
+    const markBtn = clone.querySelector(".btn-complete");
+    markBtn.dataset.id = task.id;
+
     taskGrid.appendChild(clone);
   });
 }
+
+taskGrid.addEventListener("click", async (event) => {
+  if (event.target.classList.contains("btn-delete")) {
+    const taskID = event.target.dataset.id;
+
+    console.log(`Deleted task: ${taskID}`);
+
+    const response = await fetch(`/delete-task/${taskID}`, { method: "DELETE" });
+
+    if (!response.ok) {
+      const textError = await response.text();
+      changeContent(formError, textError);
+      return;
+    }
+
+    loadTasks();
+  }
+
+  if (event.target.classList.contains("btn-complete")) {
+    const taskID = event.target.dataset.id;
+
+    console.log(`Marked task ${taskID} as completed.`);
+
+    const response = await fetch(`/mark-as-done/${taskID}`, { method: "POST" });
+
+    if (!response.ok) {
+      const textError = await response.text();
+      changeContent(formError, textError);
+      return;
+    }
+
+    loadTasks();
+  }
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -66,7 +121,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   try {
-    const reponse = await fetch("/add-task", {
+    const response = await fetch("/add-task", {
       method: "POST",
       headers: {
         "content-Type": "application/x-www-form-urlencoded",
@@ -74,8 +129,8 @@ form.addEventListener("submit", async (event) => {
       body: data,
     });
 
-    if (!reponse.ok) {
-      const textError = await reponse.text();
+    if (!response.ok) {
+      const textError = await response.text();
       changeContent(formError, textError);
       return;
     }
