@@ -2,8 +2,9 @@ const modal = document.querySelector("#addTaskModal");
 const openBtn = document.querySelector("#openAddTaskBtn");
 const closeBtn = document.querySelector("#closeModalBtn");
 const form = document.querySelector("#addTaskForm");
-const formError = document.querySelector("#task-from-error");
+const formError = document.querySelector("#task-form-error");
 const taskGrid = document.querySelector("#task-grid");
+const completedTaskGrid = document.querySelector("#completed-task-grid");
 const taskTemplate = document.querySelector("#task-card-template");
 const logOutButton = document.querySelector("#logoutBtn");
 
@@ -28,6 +29,37 @@ logOutButton.addEventListener("click", async () => {
   window.location.href = "/login";
 });
 
+function renderTasks(tasks) {
+  taskGrid.innerHTML = "";
+  completedTaskGrid.innerHTML = "";
+
+  if (tasks.length === 0) {
+    taskGrid.innerHTML = "<p>No tasks yet. Click '+ Add task' to get started. </p>";
+  }
+
+  tasks.forEach((task) => {
+    const clone = taskTemplate.content.cloneNode(true);
+
+    clone.querySelector(".task-title").textContent = task.title;
+    clone.querySelector(".task-description").textContent = task.description || "No description provided";
+
+    console.log(task.status);
+
+    const deleteBtn = clone.querySelector(".btn-delete");
+    deleteBtn.dataset.id = task.id;
+
+    const markBtn = clone.querySelector(".btn-complete");
+    markBtn.dataset.id = task.id;
+
+    if (task.status === "in-progress") taskGrid.appendChild(clone);
+    else {
+      clone.querySelector(".task-card").classList.add("task-complete");
+
+      completedTaskGrid.appendChild(clone);
+    }
+  });
+}
+
 async function loadTasks() {
   try {
     const response = await fetch("/tasks");
@@ -49,29 +81,6 @@ async function loadTasks() {
       taskGrid.innerHTML = "<p class = 'error-text'>Unable to load tasks.</p>";
     }
   }
-}
-
-function renderTasks(tasks) {
-  taskGrid.innerHTML = "";
-
-  if (tasks.length === 0) {
-    taskGrid.innerHTML = "<p>No tasks yet. Click '+ Add task' to get started. </p>";
-  }
-
-  tasks.forEach((task) => {
-    const clone = taskTemplate.content.cloneNode(true);
-
-    clone.querySelector(".task-title").textContent = task.title;
-    clone.querySelector(".task-description").textContent = task.description || "No description provided";
-
-    const deleteBtn = clone.querySelector(".btn-delete");
-    deleteBtn.dataset.id = task.id;
-
-    const markBtn = clone.querySelector(".btn-complete");
-    markBtn.dataset.id = task.id;
-
-    taskGrid.appendChild(clone);
-  });
 }
 
 taskGrid.addEventListener("click", async (event) => {
@@ -97,6 +106,24 @@ taskGrid.addEventListener("click", async (event) => {
     console.log(`Marked task ${taskID} as completed.`);
 
     const response = await fetch(`/mark-as-done/${taskID}`, { method: "POST" });
+
+    if (!response.ok) {
+      const textError = await response.text();
+      changeContent(formError, textError);
+      return;
+    }
+
+    loadTasks();
+  }
+});
+
+completedTaskGrid.addEventListener("click", async (event) => {
+  if (event.target.classList.contains("btn-delete")) {
+    const taskID = event.target.dataset.id;
+
+    console.log(`Deleted task: ${taskID}`);
+
+    const response = await fetch(`/delete-task/${taskID}`, { method: "DELETE" });
 
     if (!response.ok) {
       const textError = await response.text();
