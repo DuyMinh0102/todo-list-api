@@ -1,5 +1,11 @@
 import { readFile } from "node:fs";
-import { handleAddTaskQuery, handleGetTasksQuery, handleDeleteTaskQuery, markTaskAsDone } from "./tasksQuery.js";
+import {
+  handleAddTaskQuery,
+  handleGetTasksQuery,
+  handleDeleteTaskQuery,
+  markTaskAsDone,
+  editTaskDescription,
+} from "./tasksQuery.js";
 import { handleRegistrationQuery, handleLoginQuery, invalidateUserSession } from "./auth";
 import { join } from "node:path";
 import { ServerResponse, IncomingMessage, createServer } from "node:http";
@@ -82,6 +88,10 @@ const server = createServer((req, res) => {
 
     case "POST /mark-as-done/:id":
       markTaskAsDone(req, res, taskID);
+      break;
+
+    case "PATCH /edit-task/:id":
+      editTaskDescription(req, res, taskID);
       break;
 
     case "DELETE /remove-session":

@@ -8,12 +8,20 @@ const completedTaskGrid = document.querySelector("#completed-task-grid");
 const taskTemplate = document.querySelector("#task-card-template");
 const logOutButton = document.querySelector("#logoutBtn");
 
+const editModal = document.querySelector("#editTaskModal");
+const editForm = document.querySelector("#editTaskForm");
+const editFormError = document.querySelector("#edit-task-form-error");
+const closeEditBtn = document.querySelector("#closeEditModalBtn");
+const editTaskIdInput = document.querySelector("#editTaskId");
+const editTaskDescInput = document.querySelector("#editTaskDesc");
+
 function changeContent(targetElement, content) {
   if (targetElement) targetElement.textContent = content;
 }
 
 openBtn.addEventListener("click", () => modal.showModal());
 closeBtn.addEventListener("click", () => modal.close());
+closeEditBtn.addEventListener("click", () => editModal.close());
 
 logOutButton.addEventListener("click", async () => {
   const response = await fetch("/remove-session", {
@@ -50,6 +58,10 @@ function renderTasks(tasks) {
 
     const markBtn = clone.querySelector(".btn-complete");
     markBtn.dataset.id = task.id;
+
+    const editBtn = clone.querySelector(".btn-edit");
+    editBtn.dataset.id = task.id;
+    editBtn.dataset.desc = task.description || "";
 
     if (task.status === "in-progress") taskGrid.appendChild(clone);
     else {
@@ -115,6 +127,17 @@ taskGrid.addEventListener("click", async (event) => {
 
     loadTasks();
   }
+
+  if (event.target.classList.contains("btn-edit")) {
+    const taskID = event.target.dataset.id;
+    const currentDesc = event.target.dataset.desc;
+
+    editTaskIdInput.value = taskID;
+    editTaskDescInput.value = currentDesc;
+    changeContent(editFormError, "");
+
+    editModal.showModal();
+  }
 });
 
 completedTaskGrid.addEventListener("click", async (event) => {
@@ -168,6 +191,37 @@ form.addEventListener("submit", async (event) => {
   } catch (error) {
     console.error(error.message);
     changeContent(formError, "Unable to connect to server.");
+  }
+});
+
+editForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  changeContent(editFormError, "");
+
+  const taskID = editTaskIdInput.value;
+  const data = new URLSearchParams(new FormData(editForm));
+
+  try {
+    const response = await fetch(`/edit-task/${taskID}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: data,
+    });
+
+    if (!response.ok) {
+      const textError = await response.text();
+      changeContent(editFormError, textError);
+      return;
+    }
+
+    editForm.reset();
+    editModal.close();
+    await loadTasks();
+  } catch (error) {
+    console.error(error.message);
+    changeContent(editFormError, "Unable to connect to server.");
   }
 });
 

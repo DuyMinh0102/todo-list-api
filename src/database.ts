@@ -53,6 +53,8 @@ export const getTasks = db.prepare(`
   JOIN sessions ON tasks.userid = sessions.userid 
   WHERE sessions.id = ? AND datetime(sessions.expire) > datetime('now')
 `);
+
+export const updateTask = db.prepare(`UPDATE tasks SET description = ? WHERE id = ? AND userid = ?`);
 export const markAsComplete = db.prepare(`UPDATE tasks SET status = 'Completed' WHERE id = ? AND userid = ?`);
 
 export const deleteTask = db.prepare(`DELETE FROM tasks where ID = ? AND userid = ?`);
