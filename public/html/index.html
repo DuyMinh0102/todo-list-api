@@ -63,11 +63,34 @@
       </form>
     </dialog>
 
+    <dialog id="editTaskModal" class="task-modal">
+      <form id="editTaskForm">
+        <h2>Edit Task Description</h2>
+
+        <p class="error-container">
+          <span id="edit-task-form-error" class="error-text"></span>
+        </p>
+
+        <input type="hidden" id="editTaskId" name="id" />
+
+        <p>
+          <label for="editTaskDesc">New Description:</label>
+          <textarea id="editTaskDesc" name="description" rows="3" maxlength="200"></textarea>
+        </p>
+
+        <div class="modal-actions">
+          <button type="button" id="closeEditModalBtn" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </dialog>
+
     <template id="task-card-template">
       <article class="task-card">
         <h3 class="task-title"></h3>
         <p class="task-description"></p>
         <div class="task-footer">
+          <button class="btn-edit">Edit</button>
           <button class="btn-complete">Mark Complete</button>
           <button class="btn-delete">Remove</button>
         </div>
