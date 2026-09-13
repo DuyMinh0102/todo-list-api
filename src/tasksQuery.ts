@@ -81,6 +81,14 @@ export function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<In
   }
 
   try {
+    const currentUser = getSessionInfo.get(sessionID) as User | undefined;
+
+    if (!currentUser) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized: Invalid or expired session" }));
+      return;
+    }
+
     const tasks = getTasks.all(sessionID);
 
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -244,7 +252,7 @@ export async function editTaskDescription(
 
         if (info.changes === 0) {
           res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("Task not found or you do not have permission to mark it");
+          res.end("Task not found or you do not have permission to edit it");
           return;
         }
 

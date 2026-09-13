@@ -37,7 +37,7 @@ export async function handleRegistrationQuery(req: IncomingMessage, res: ServerR
 
       if (!username || !email || !pwd || !confirmPwd) {
         res.writeHead(400, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("All fields must be filled.");
+        res.end("Please fill in all fields.");
         return;
       }
 
@@ -108,7 +108,7 @@ export async function handleLoginQuery(req: IncomingMessage, res: ServerResponse
         const queryUser = getUserHash.get(username) as hashedPwd | undefined;
         if (!queryUser) {
           res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-          res.end("Username does not exist");
+          res.end("Unauthorized.");
           return;
         }
 
@@ -116,7 +116,7 @@ export async function handleLoginQuery(req: IncomingMessage, res: ServerResponse
 
         if (currentPwdHash.password_hash !== queryUser.password_hash) {
           res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-          res.end("Wrong password");
+          res.end("Wrong password.");
           return;
         }
 
@@ -151,7 +151,13 @@ export function invalidateUserSession(req: IncomingMessage, res: ServerResponse<
   }
 
   try {
-    deleteSession.run(sessionID);
+    const info = deleteSession.run(sessionID);
+
+    if (info.changes === 0) {
+      res.writeHead(401, { "Content-Type": "text/plain" });
+      res.end("Unauthorized. Invalid session.");
+      return;
+    }
 
     res.writeHead(200, {
       "Set-Cookie": "session_id=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0",

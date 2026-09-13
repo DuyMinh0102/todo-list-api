@@ -6,12 +6,12 @@ const emailError = document.querySelector("#email-error");
 const pwdError = document.querySelector("#pwd-error");
 const confirmPwdError = document.querySelector("#confirm-pwd-error");
 
-function changeElementContent(targetElement, content){
+function changeElementContent(targetElement, content) {
   if (targetElement) targetElement.textContent = content;
 }
 
-function sleep(ms){
-  return new Promise(resolve => setTimeout(resolve, ms));
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 form.addEventListener("submit", async (event) => {

@@ -23,7 +23,7 @@ function returnNeededFile(res: ServerResponse<IncomingMessage>, filename: string
       return;
     }
 
-    if (filetype === "js") filetype = "javascript";
+    if (filetype == "javascripts") filetype = "javascript";
     res.writeHead(200, { "Content-Type": `text/${filetype}; charset=utf-8` });
     res.end(content);
   });
@@ -44,16 +44,16 @@ const server = createServer((req, res) => {
       returnNeededFile(res, "main.css", "css");
       break;
 
-    case "GET /js/login_check.js":
-      returnNeededFile(res, "login_check.js", "js");
+    case "GET /javascripts/login_check.js":
+      returnNeededFile(res, "login_check.js", "javascripts");
       break;
 
-    case "GET /js/register_check.js":
-      returnNeededFile(res, "register_check.js", "js");
+    case "GET /javascripts/register_check.js":
+      returnNeededFile(res, "register_check.js", "javascripts");
       break;
 
-    case "GET /js/index.js":
-      returnNeededFile(res, "index.js", "js");
+    case "GET /javascripts/index.js":
+      returnNeededFile(res, "index.js", "javascripts");
       break;
 
     case "GET /":
