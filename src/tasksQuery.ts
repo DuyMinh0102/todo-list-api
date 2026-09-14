@@ -20,7 +20,7 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
 
       if (bodySize > MAX_BODY_SIZE) {
         res.writeHead(413, { "Content-Type": "text/plain" });
-        res.end("Payload too large");
+        res.end("Payload too large.");
         req.destroy();
       }
 
@@ -44,7 +44,7 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
 
       if (!sessionID) {
         res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Unauthorized: Missing session cookie");
+        res.end("Unauthorized: Missing session cookie.");
         return;
       }
 
@@ -53,14 +53,14 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
 
         if (!currentUser) {
           res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-          res.end("Unauthorized: Invalid or expired session");
+          res.end("Unauthorized: Invalid or expired session.");
           return;
         }
 
         insertTaskData.run(taskTitle, taskDesc, currentUser.id, "in-progress");
 
         res.writeHead(201, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Task added successfully");
+        res.end("Task added successfully.");
       } catch (err) {
         console.error("Task creation error:", err);
         res.writeHead(500, { "Content-Type": "text/plain" });
@@ -76,11 +76,19 @@ export function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<In
   if (!sessionID) {
     res.statusCode = 401;
     res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
+    res.end(JSON.stringify({ error: "Unauthorized." }));
     return;
   }
 
   try {
+    const currentUser = getSessionInfo.get(sessionID) as User | undefined;
+
+    if (!currentUser) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized: Invalid or expired session." }));
+      return;
+    }
+
     const tasks = getTasks.all(sessionID);
 
     res.writeHead(200, { "Content-Type": "application/json" });
@@ -244,7 +252,7 @@ export async function editTaskDescription(
 
         if (info.changes === 0) {
           res.writeHead(404, { "Content-Type": "text/plain" });
-          res.end("Task not found or you do not have permission to mark it");
+          res.end("Task not found or you do not have permission to edit it");
           return;
         }
 

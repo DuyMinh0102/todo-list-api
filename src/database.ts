@@ -9,7 +9,7 @@ if (!existsSync(dbPath)) {
   mkdirSync(dbDir, { recursive: true });
 }
 
-const db = new Database(dbPath, { verbose: console.log });
+const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
@@ -59,3 +59,13 @@ export const markAsComplete = db.prepare(`UPDATE tasks SET status = 'Completed' 
 
 export const deleteTask = db.prepare(`DELETE FROM tasks where ID = ? AND userid = ?`);
 export const deleteSession = db.prepare(`DELETE FROM sessions where id = ?`);
+
+export const deleteUserCascade = db.transaction((username: string) => {
+  const user = db.prepare(`SELECT id FROM users WHERE username = ?`).get(username) as { id: number } | undefined;
+
+  if (user) {
+    db.prepare(`DELETE FROM tasks WHERE userid = ?`).run(user.id);
+    db.prepare(`DELETE FROM sessions WHERE userid = ?`).run(user.id);
+    db.prepare(`DELETE FROM users WHERE id = ?`).run(user.id);
+  }
+});

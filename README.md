@@ -4,6 +4,8 @@ The ideas of this project comes from: https://roadmap.sh/projects/todo-list-api
 
 ## Overview
 
+A simple API that allows registration/login of a user. Then allow adding/removing a tasks, edit their description, and marking them as completed.
+
 ## Installation
 
 Make sure you have NodeJS installed (>= v26.7.0), and npm (>= 12.0.2).

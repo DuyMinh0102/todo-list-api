@@ -5,7 +5,7 @@ import {
   handleDeleteTaskQuery,
   markTaskAsDone,
   editTaskDescription,
-} from "./tasksQuery.js";
+} from "../src/tasksQuery.js";
 import { handleRegistrationQuery, handleLoginQuery, invalidateUserSession } from "./auth";
 import { join } from "node:path";
 import { ServerResponse, IncomingMessage, createServer } from "node:http";
