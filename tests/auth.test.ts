@@ -27,7 +27,10 @@ async function checkMatching(
   const resText = await res.text();
 
   assert.strictEqual(res.status, targetStatus);
-  assert.strictEqual(resText, targetResText);
+  if (targetResText !== undefined) assert.strictEqual(resText, targetResText);
+
+  const setCookie = res.headers.get("set-cookie");
+  if (setCookie) setCookieHeader.value = setCookie;
 }
 
 describe("POST /register", () => {
@@ -41,7 +44,7 @@ describe("POST /register", () => {
       confirm_pwd: "aVeryVeryValidPWD",
     });
 
-    checkMatching(
+    await checkMatching(
       "POST",
       validUserData,
       currentTestingURL,
@@ -58,7 +61,7 @@ describe("POST /register", () => {
       confirm_pwd: "thisisuser01pwd",
     });
 
-    checkMatching("POST", incompletePayload, currentTestingURL, 400, "Please fill in all fields.");
+    await checkMatching("POST", incompletePayload, currentTestingURL, 400, "Please fill in all fields.");
   });
 
   it("should return 400 Bad Request when pwd !== confirm_pwd", async () => {
@@ -69,7 +72,7 @@ describe("POST /register", () => {
       confirm_pwd: "thisisuserO2pwd",
     });
 
-    checkMatching("POST", pwdNotMatch, currentTestingURL, 400, "Confirm password does not match");
+    await checkMatching("POST", pwdNotMatch, currentTestingURL, 400, "Confirm password does not match");
   });
 
   it("should return 409 Conflict when registering with an existing username", async () => {
@@ -80,7 +83,13 @@ describe("POST /register", () => {
       confirm_pwd: "validPWD___",
     });
 
-    checkMatching("POST", thisGuyRegisteredWithExistedUsername, currentTestingURL, 409, "Username already exists.");
+    await checkMatching(
+      "POST",
+      thisGuyRegisteredWithExistedUsername,
+      currentTestingURL,
+      409,
+      "Username already exists.",
+    );
   });
 });
 
@@ -93,7 +102,7 @@ describe("POST /login", () => {
       pwd: "aVeryVeryValidPWD",
     });
 
-    checkMatching(
+    await checkMatching(
       "POST",
       validUserLogin,
       currentTestingURL,
@@ -108,7 +117,7 @@ describe("POST /login", () => {
       pwd: "",
     });
 
-    checkMatching("POST", emptyFieldLoginForm, currentTestingURL, 400, "Username and Password are required.");
+    await checkMatching("POST", emptyFieldLoginForm, currentTestingURL, 400, "Username and Password are required.");
   });
 
   it("should return 401 Unauthorized when logging in using a non-existent username", async () => {
@@ -117,7 +126,7 @@ describe("POST /login", () => {
       pwd: "nonexistentPWD",
     });
 
-    checkMatching("POST", nonexistentUser, currentTestingURL, 401, "Unauthorized.");
+    await checkMatching("POST", nonexistentUser, currentTestingURL, 401, "Unauthorized.");
   });
 
   it("should return 401 Unauthorized when logging in with wrong password", async () => {
@@ -126,7 +135,7 @@ describe("POST /login", () => {
       pwd: "wrongPWDBTW",
     });
 
-    checkMatching("POST", wrongPWDUser, currentTestingURL, 401, "Wrong password.");
+    await checkMatching("POST", wrongPWDUser, currentTestingURL, 401, "Wrong password.");
   });
 });
 
@@ -134,13 +143,13 @@ describe("DELETE /remove-session", () => {
   const currentTestingURL = "http://localhost:3000/remove-session";
 
   it("should return 401 Unauthorized when calling logout without a cookie", async () => {
-    checkMatching("DELETE", "", currentTestingURL, 401, "Already logged out or unauthorized.", "");
+    await checkMatching("DELETE", "", currentTestingURL, 401, "Already logged out or unauthorized.", "");
   });
 
   it("should return 401 Unauthorized when providing a fake or malformed session cookie", async () => {
     const fakeCookie = "session_id=fake_non_existent_session_12345";
 
-    checkMatching("DELETE", "", currentTestingURL, 401, "Unauthorized. Invalid session.", fakeCookie);
+    await checkMatching("DELETE", "", currentTestingURL, 401, "Unauthorized. Invalid session.", fakeCookie);
   });
 
   it("should return 200 OK when logging out and invalidating the session", async () => {
