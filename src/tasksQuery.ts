@@ -20,7 +20,7 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
 
       if (bodySize > MAX_BODY_SIZE) {
         res.writeHead(413, { "Content-Type": "text/plain" });
-        res.end("Payload too large");
+        res.end("Payload too large.");
         req.destroy();
       }
 
@@ -44,7 +44,7 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
 
       if (!sessionID) {
         res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Unauthorized: Missing session cookie");
+        res.end("Unauthorized: Missing session cookie.");
         return;
       }
 
@@ -53,14 +53,14 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
 
         if (!currentUser) {
           res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8" });
-          res.end("Unauthorized: Invalid or expired session");
+          res.end("Unauthorized: Invalid or expired session.");
           return;
         }
 
         insertTaskData.run(taskTitle, taskDesc, currentUser.id, "in-progress");
 
         res.writeHead(201, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Task added successfully");
+        res.end("Task added successfully.");
       } catch (err) {
         console.error("Task creation error:", err);
         res.writeHead(500, { "Content-Type": "text/plain" });
@@ -76,7 +76,7 @@ export function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<In
   if (!sessionID) {
     res.statusCode = 401;
     res.writeHead(401, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Unauthorized" }));
+    res.end(JSON.stringify({ error: "Unauthorized." }));
     return;
   }
 
@@ -85,7 +85,7 @@ export function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<In
 
     if (!currentUser) {
       res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Unauthorized: Invalid or expired session" }));
+      res.end(JSON.stringify({ error: "Unauthorized: Invalid or expired session." }));
       return;
     }
 
