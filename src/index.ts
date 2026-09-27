@@ -8,10 +8,14 @@ import {
 } from "./tasksQuery.js";
 import { handleRegistrationQuery, handleLoginQuery, invalidateUserSession } from "./auth";
 import { join } from "node:path";
-import { ServerResponse, IncomingMessage, createServer } from "node:http";
+import { ServerResponse, IncomingMessage, createServer, Server } from "node:http";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = "localhost";
+
+const logs = new Map();
+const WINDOW_SIZE = 60 * 1000;
+const MAX_REQUESTS = 10;
 
 function returnNeededFile(res: ServerResponse<IncomingMessage>, filename: string, filetype: string): void {
   const filePath = join(process.cwd(), "public", filetype, filename);
@@ -29,8 +33,26 @@ function returnNeededFile(res: ServerResponse<IncomingMessage>, filename: string
   });
 }
 
+function slidingWindowLog(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+  const ip = req.socket.remoteAddress;
+  const now = Date.now();
+
+  let timestamps = logs.get(ip) || [];
+  timestamps = timestamps.filter((ts: number) => now - ts < WINDOW_SIZE);
+  timestamps.push(now);
+
+  logs.set(ip, timestamps);
+
+  if (timestamps.length > MAX_REQUESTS) {
+    res.writeHead(429, { "Content-Type": "text/plain" });
+    res.end("Too Many Requests.");
+  } else return;
+}
+
 const server = createServer((req, res) => {
   const { headers, method, url } = req;
+
+  slidingWindowLog(req, res);
 
   const normalizedURL = url?.replace(/\/\d+$/, "/:id");
   const taskID = url?.split("/").pop();
@@ -82,23 +104,23 @@ const server = createServer((req, res) => {
       handleRegistrationQuery(req, res);
       break;
 
-    case "POST /add-task":
+    case "POST /tasks":
       handleAddTaskQuery(req, res);
       break;
 
-    case "POST /mark-as-done/:id":
+    case "PUT /tasks/:id":
       markTaskAsDone(req, res, taskID);
       break;
 
-    case "PATCH /edit-task/:id":
+    case "PATCH /tasks/:id":
       editTaskDescription(req, res, taskID);
       break;
 
-    case "DELETE /remove-session":
+    case "DELETE /sessions":
       invalidateUserSession(req, res);
       break;
 
-    case "DELETE /delete-task/:id":
+    case "DELETE /tasks/:id":
       handleDeleteTaskQuery(req, res, taskID);
       break;
 

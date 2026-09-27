@@ -139,8 +139,8 @@ describe("POST /login", () => {
   });
 });
 
-describe("DELETE /remove-session", () => {
-  const currentTestingURL = "http://localhost:3000/remove-session";
+describe("DELETE /sessions", () => {
+  const currentTestingURL = "http://localhost:3000/sessions";
 
   it("should return 401 Unauthorized when calling logout without a cookie", async () => {
     await checkMatching("DELETE", "", currentTestingURL, 401, "Already logged out or unauthorized.", "");

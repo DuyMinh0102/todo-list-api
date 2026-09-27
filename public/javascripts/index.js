@@ -15,6 +15,10 @@ const closeEditBtn = document.querySelector("#closeEditModalBtn");
 const editTaskIdInput = document.querySelector("#editTaskId");
 const editTaskDescInput = document.querySelector("#editTaskDesc");
 
+const logs = new Map();
+const WINDOW_SIZE = 60 * 1000;
+const MAX_REQUESTS = 10;
+
 function changeContent(targetElement, content) {
   if (targetElement) targetElement.textContent = content;
 }
@@ -24,7 +28,7 @@ closeBtn.addEventListener("click", () => modal.close());
 closeEditBtn.addEventListener("click", () => editModal.close());
 
 logOutButton.addEventListener("click", async () => {
-  const response = await fetch("/remove-session", {
+  const response = await fetch("/sessions", {
     method: "DELETE",
   });
 
@@ -101,7 +105,7 @@ taskGrid.addEventListener("click", async (event) => {
 
     console.log(`Deleted task: ${taskID}`);
 
-    const response = await fetch(`/delete-task/${taskID}`, { method: "DELETE" });
+    const response = await fetch(`/tasks/${taskID}`, { method: "DELETE" });
 
     if (!response.ok) {
       const textError = await response.text();
@@ -117,7 +121,7 @@ taskGrid.addEventListener("click", async (event) => {
 
     console.log(`Marked task ${taskID} as completed.`);
 
-    const response = await fetch(`/mark-as-done/${taskID}`, { method: "POST" });
+    const response = await fetch(`/tasks/${taskID}`, { method: "PUT" });
 
     if (!response.ok) {
       const textError = await response.text();
@@ -146,7 +150,7 @@ completedTaskGrid.addEventListener("click", async (event) => {
 
     console.log(`Deleted task: ${taskID}`);
 
-    const response = await fetch(`/delete-task/${taskID}`, { method: "DELETE" });
+    const response = await fetch(`/tasks/${taskID}`, { method: "DELETE" });
 
     if (!response.ok) {
       const textError = await response.text();
@@ -171,7 +175,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   try {
-    const response = await fetch("/add-task", {
+    const response = await fetch("/tasks", {
       method: "POST",
       headers: {
         "content-Type": "application/x-www-form-urlencoded",
@@ -202,7 +206,7 @@ editForm.addEventListener("submit", async (event) => {
   const data = new URLSearchParams(new FormData(editForm));
 
   try {
-    const response = await fetch(`/edit-task/${taskID}`, {
+    const response = await fetch(`/tasks/${taskID}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",

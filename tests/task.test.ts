@@ -78,8 +78,8 @@ before(async () => {
   user2Cookie = getCookie(logUser2);
 });
 
-describe("POST /add-task", () => {
-  const currentTestingURL = `${BASEURL}/add-task`;
+describe("POST /tasks", () => {
+  const currentTestingURL = `${BASEURL}/tasks`;
 
   it("should return 413 Payload too large if the request's data size is too large", async () => {
     const veryLargeBody = createForm({
@@ -190,10 +190,10 @@ describe("GET /tasks", () => {
   });
 });
 
-describe("PATCH /edit-task/:id", () => {
+describe("PATCH /tasks/:id", () => {
   it("should return 404 Not Found from router when non-numeric ID is passed", async () => {
     await checkMatching({
-      url: `${BASEURL}/edit-task/abc`,
+      url: `${BASEURL}/tasks/abc`,
       method: "PATCH",
       cookie: user1Cookie,
       data: createForm({ description: "Updated Desc" }),
@@ -204,7 +204,7 @@ describe("PATCH /edit-task/:id", () => {
 
   it("should return 401 Unauthorized when missing session cookie", async () => {
     await checkMatching({
-      url: `${BASEURL}/edit-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "PATCH",
       data: createForm({ description: "Updated Desc" }),
       status: 401,
@@ -214,7 +214,7 @@ describe("PATCH /edit-task/:id", () => {
 
   it("should return 404 when user_02 tries to edit user_01's task", async () => {
     await checkMatching({
-      url: `${BASEURL}/edit-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "PATCH",
       cookie: user2Cookie,
       data: createForm({ description: "Hacked Desc" }),
@@ -225,7 +225,7 @@ describe("PATCH /edit-task/:id", () => {
 
   it("should return 200 OK when user_01 updates task description", async () => {
     await checkMatching({
-      url: `${BASEURL}/edit-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "PATCH",
       cookie: user1Cookie,
       data: createForm({ description: "Updated Description content" }),
@@ -235,11 +235,11 @@ describe("PATCH /edit-task/:id", () => {
   });
 });
 
-describe("POST /mark-as-done/:id", () => {
+describe("PUT /tasks/:id", () => {
   it("should return 404 Not Found from router when non-numeric ID is passed", async () => {
     await checkMatching({
-      url: `${BASEURL}/mark-as-done/invalid`,
-      method: "POST",
+      url: `${BASEURL}/tasks/invalid`,
+      method: "PUT",
       cookie: user1Cookie,
       status: 404,
       targetText: "404 Not Found",
@@ -248,8 +248,8 @@ describe("POST /mark-as-done/:id", () => {
 
   it("should return 401 Unauthorized when missing session cookie", async () => {
     await checkMatching({
-      url: `${BASEURL}/mark-as-done/${createdTaskId}`,
-      method: "POST",
+      url: `${BASEURL}/tasks/${createdTaskId}`,
+      method: "PUT",
       status: 401,
       targetText: "Unauthorized.",
     });
@@ -257,8 +257,8 @@ describe("POST /mark-as-done/:id", () => {
 
   it("should return 404 when user_02 attempts to mark user_01's task as done", async () => {
     await checkMatching({
-      url: `${BASEURL}/mark-as-done/${createdTaskId}`,
-      method: "POST",
+      url: `${BASEURL}/tasks/${createdTaskId}`,
+      method: "PUT",
       cookie: user2Cookie,
       status: 404,
       targetText: "Task not found or you do not have permission to mark it",
@@ -267,8 +267,8 @@ describe("POST /mark-as-done/:id", () => {
 
   it("should return 200 OK when user_01 marks task as completed", async () => {
     await checkMatching({
-      url: `${BASEURL}/mark-as-done/${createdTaskId}`,
-      method: "POST",
+      url: `${BASEURL}/tasks/${createdTaskId}`,
+      method: "PUT",
       cookie: user1Cookie,
       status: 200,
       targetText: `Task marked as completed successfully. ID: ${createdTaskId}`,
@@ -276,7 +276,7 @@ describe("POST /mark-as-done/:id", () => {
   });
 });
 
-describe("DELETE /delete-task/:id", () => {
+describe("DELETE /tasks/:id", () => {
   it("should return 404 Not Found from router when non-numeric ID is passed", async () => {
     await checkMatching({
       url: `${BASEURL}/delete-task/not_a_number`,
@@ -289,7 +289,7 @@ describe("DELETE /delete-task/:id", () => {
 
   it("should return 401 Unauthorized when calling delete without cookie", async () => {
     await checkMatching({
-      url: `${BASEURL}/delete-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "DELETE",
       status: 401,
       targetText: "Unauthorized.",
@@ -298,7 +298,7 @@ describe("DELETE /delete-task/:id", () => {
 
   it("should return 404 when user_02 tries to delete user_01's task", async () => {
     await checkMatching({
-      url: `${BASEURL}/delete-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "DELETE",
       cookie: user2Cookie,
       status: 404,
@@ -308,7 +308,7 @@ describe("DELETE /delete-task/:id", () => {
 
   it("should return 200 OK when user_01 deletes their task", async () => {
     await checkMatching({
-      url: `${BASEURL}/delete-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "DELETE",
       cookie: user1Cookie,
       status: 200,
@@ -318,7 +318,7 @@ describe("DELETE /delete-task/:id", () => {
 
   it("should return 404 Not Found when attempting to delete an already deleted task", async () => {
     await checkMatching({
-      url: `${BASEURL}/delete-task/${createdTaskId}`,
+      url: `${BASEURL}/tasks/${createdTaskId}`,
       method: "DELETE",
       cookie: user1Cookie,
       status: 404,
