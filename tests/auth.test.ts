@@ -34,7 +34,7 @@ async function checkMatching(
 }
 
 describe("POST /register", () => {
-  const currentTestingURL = "http://localhost:3000/register";
+  const currentTestingURL = "http://localhost:3000/api/register";
 
   it("should return 200 OK with valid registration form", async () => {
     const validUserData = createForm({
@@ -94,7 +94,7 @@ describe("POST /register", () => {
 });
 
 describe("POST /login", () => {
-  const currentTestingURL = "http://localhost:3000/login";
+  const currentTestingURL = "http://localhost:3000/api/login";
 
   it("should return 200 OK when a valid login form is sent", async () => {
     const validUserLogin = createForm({
@@ -140,7 +140,7 @@ describe("POST /login", () => {
 });
 
 describe("DELETE /sessions", () => {
-  const currentTestingURL = "http://localhost:3000/sessions";
+  const currentTestingURL = "http://localhost:3000/api/sessions";
 
   it("should return 401 Unauthorized when calling logout without a cookie", async () => {
     await checkMatching("DELETE", "", currentTestingURL, 401, "Already logged out or unauthorized.", "");
@@ -156,7 +156,7 @@ describe("DELETE /sessions", () => {
     const logoutRes = await sendAuthReq(currentTestingURL, "DELETE", getSessionCookie());
     assert.strictEqual(logoutRes.status, 200);
 
-    const retryRes = await sendAuthReq("http://localhost:3000/tasks", "GET", getSessionCookie());
+    const retryRes = await sendAuthReq("http://localhost:3000/api/tasks", "GET", getSessionCookie());
     assert.strictEqual(retryRes.status, 401);
   });
 });

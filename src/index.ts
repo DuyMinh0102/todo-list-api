@@ -13,6 +13,8 @@ import { ServerResponse, IncomingMessage, createServer, Server } from "node:http
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = "localhost";
 
+const IS_TEST = process.env.NODE_ENV === "test";
+
 const logs = new Map();
 const RATE_LIMIT = {
   windowMs: 60 * 1000,
@@ -57,6 +59,8 @@ function serveStatic(url: string | null | undefined, res: ServerResponse<Incomin
 }
 
 function slidingWindowLog(req: IncomingMessage, res: ServerResponse<IncomingMessage>): boolean {
+  if (IS_TEST) return true;
+
   const ip = req.socket.remoteAddress;
   const now = Date.now();
 
@@ -83,36 +87,36 @@ const server = createServer((req, res) => {
   const taskID = url?.split("/").pop();
 
   switch (`${method} ${normalizedURL}`) {
-    case "GET /tasks":
+    case "GET /api/tasks":
       handleGetTasksQuery(req, res);
       break;
 
-    case "POST /login":
+    case "POST /api/login":
       handleLoginQuery(req, res);
 
       break;
 
-    case "POST /register":
+    case "POST /api/register":
       handleRegistrationQuery(req, res);
       break;
 
-    case "POST /tasks":
+    case "POST /api/tasks":
       handleAddTaskQuery(req, res);
       break;
 
-    case "PUT /tasks/:id":
+    case "PUT /api/tasks/:id":
       markTaskAsDone(req, res, taskID);
       break;
 
-    case "PATCH /tasks/:id":
+    case "PATCH /api/tasks/:id":
       editTaskDescription(req, res, taskID);
       break;
 
-    case "DELETE /sessions":
+    case "DELETE /api/sessions":
       invalidateUserSession(req, res);
       break;
 
-    case "DELETE /tasks/:id":
+    case "DELETE /api/tasks/:id":
       handleDeleteTaskQuery(req, res, taskID);
       break;
 

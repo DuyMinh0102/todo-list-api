@@ -15,7 +15,7 @@ function getCookie(res: Response): string {
   return header ? header.split(";")[0] : "";
 }
 
-const BASEURL = "http://localhost:3000";
+const BASEURL = "http://localhost:3000/api";
 
 let user1Cookie = "";
 let user2Cookie = "";
@@ -279,7 +279,7 @@ describe("PUT /tasks/:id", () => {
 describe("DELETE /tasks/:id", () => {
   it("should return 404 Not Found from router when non-numeric ID is passed", async () => {
     await checkMatching({
-      url: `${BASEURL}/delete-task/not_a_number`,
+      url: `${BASEURL}/tasks/not_a_number`,
       method: "DELETE",
       cookie: user1Cookie,
       status: 404,
