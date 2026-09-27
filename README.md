@@ -14,8 +14,6 @@ Make sure you have NodeJS installed (>= v26.7.0), and npm (>= 12.0.2).
 
 2. Install these packages while inside of the repo
 
-- @types/better-sqlite3@9.6.0
-- @types/node@26.4.1
 - better-sqlite3@13.0.3
 - tsx@4.23.13
 - typescript@7.0.2
