@@ -8,7 +8,7 @@ import {
 } from "./tasksQuery.js";
 import { handleRegistrationQuery, handleLoginQuery, invalidateUserSession } from "./auth";
 import { join } from "node:path";
-import { ServerResponse, IncomingMessage, createServer, Server } from "node:http";
+import { ServerResponse, IncomingMessage, createServer } from "node:http";
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = "localhost";
@@ -22,7 +22,7 @@ const RATE_LIMIT = {
   endpoints: {
     "/login": { windowMs: 15 * 60 * 1000, maxRequests: 5 },
     "/register": { windowMs: 60 * 60 * 1000, maxRequests: 3 },
-  }
+  },
 } as const;
 const WINDOW_SIZE = 60 * 1000;
 const MAX_REQUESTS = 10;
@@ -50,10 +50,15 @@ function serveStatic(url: string | null | undefined, res: ServerResponse<Incomin
     if (err) {
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end("404 Not Found.");
+      return;
     }
-    res.writeHead(200, { "Content-Type": route.mime });
+    res.writeHead(200, {
+      "Content-Type": route.mime,
+      "X-Content-Type-Options": "nosniff",
+      "referrer-policy": "strict-origin-when-cross-origin",
+    });
     res.end(content);
-  })
+  });
 
   return true;
 }
@@ -71,7 +76,7 @@ function slidingWindowLog(req: IncomingMessage, res: ServerResponse<IncomingMess
 
   if (timestamps.length > MAX_REQUESTS) {
     const retryAfter = Math.ceil((timestamps[0] + WINDOW_SIZE - now) / 1000);
-    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(retryAfter), });
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(retryAfter) });
     res.end(JSON.stringify({ error: "Too Many Requests", retryAfter }));
     return false;
   } else return true;
