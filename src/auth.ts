@@ -1,9 +1,10 @@
 import { insertUserData, getUserHash, getUserInfo, insertSession, deleteSession } from "./database";
 import { randomBytes } from "node:crypto";
-import { ServerResponse, IncomingMessage } from "node:http";
+import { ServerResponse } from "node:http";
 import { MAX_BODY_SIZE, parseCookie, hashedPwd, User, hashPassword } from "./helpers";
+import express, { type Request, type Response } from "express";
 
-export async function handleRegistrationQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+export async function handleRegistrationQuery(req: Request, res: ServerResponse<Request>) {
   let body: Buffer[] = [];
   let bodySize = 0;
 
@@ -68,7 +69,7 @@ export async function handleRegistrationQuery(req: IncomingMessage, res: ServerR
     });
 }
 
-export async function handleLoginQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+export async function handleLoginQuery(req: Request, res: ServerResponse<Request>) {
   let body: Buffer[] = [];
   let bodySize = 0;
 
@@ -140,7 +141,7 @@ export async function handleLoginQuery(req: IncomingMessage, res: ServerResponse
     });
 }
 
-export function invalidateUserSession(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+export function invalidateUserSession(req: Request, res: ServerResponse<Request>) {
   const cookies = parseCookie(req.headers.cookie);
   const sessionID = cookies["session_id"];
 

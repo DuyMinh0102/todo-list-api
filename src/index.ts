@@ -1,21 +1,17 @@
-import { readFile } from "node:fs";
-import {
-  handleAddTaskQuery,
-  handleGetTasksQuery,
-  handleDeleteTaskQuery,
-  markTaskAsDone,
-  editTaskDescription,
-} from "./tasksQuery.js";
-import { handleRegistrationQuery, handleLoginQuery, invalidateUserSession } from "./auth";
-import { join } from "node:path";
-import { ServerResponse, IncomingMessage, createServer } from "node:http";
-
-const PORT = Number(process.env.PORT) || 8080;
-const HOST = "localhost";
+import { authRouter } from "./routes/auth";
+import { taskRouter } from "./routes/tasks";
+import express, { NextFunction, type Express, type Request, type Response } from "express";
 
 const IS_TEST = process.env.NODE_ENV === "test";
+const PORT = Number(process.env.PORT) || 8080;
 
-const logs = new Map();
+const app: Express = express();
+
+interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+}
+
 const RATE_LIMIT = {
   windowMs: 60 * 1000,
   maxRequests: 10,
@@ -24,123 +20,55 @@ const RATE_LIMIT = {
     "/register": { windowMs: 60 * 60 * 1000, maxRequests: 3 },
   },
 } as const;
-const WINDOW_SIZE = 60 * 1000;
-const MAX_REQUESTS = 10;
+const logs = new Map<string, { windowMs: number; timestamps: number[] }>();
 
-const STATIC_ROUTES: Record<string, { file: string; mime: string }> = {
-  "/": { file: "html/login.html", mime: "text/html; charset=utf-8" },
-  "/login": { file: "html/login.html", mime: "text/html; charset=utf-8" },
-  "/register": { file: "html/register.html", mime: "text/html; charset=utf-8" },
-  "/home": { file: "html/index.html", mime: "text/html; charset=utf-8" },
-  "/css/login.css": { file: "css/login.css", mime: "text/css; charset=utf-8" },
-  "/css/main.css": { file: "css/main.css", mime: "text/css; charset=utf-8" },
-  "/javascripts/login_check.js": { file: "javascripts/login_check.js", mime: "text/javascript; charset=utf-8" },
-  "/javascripts/register_check.js": { file: "javascripts/register_check.js", mime: "text/javascript; charset=utf-8" },
-  "/javascripts/index.js": { file: "javascripts/index.js", mime: "text/javascript; charset=utf-8" },
-};
+function rateLimiter(config: RateLimitConfig) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.socket.remoteAddress;
+    const now = Date.now();
+    const key = `${ip}:${req.baseUrl}${req.path}`;
 
-function serveStatic(url: string | null | undefined, res: ServerResponse<IncomingMessage>): boolean {
-  if (!url) return false;
+    const entry = logs.get(key) || { windowMs: config.windowMs, timestamps: [] };
+    entry.timestamps = entry.timestamps.filter((ts) => now - ts < config.windowMs);
+    entry.timestamps.push(now);
+    logs.set(key, entry);
 
-  const route = STATIC_ROUTES[url];
-  if (!route) return false;
-
-  const filePath = join(process.cwd(), "public", route.file);
-  readFile(filePath, (err, content) => {
-    if (err) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("404 Not Found.");
+    if (entry.timestamps.length > config.maxRequests) {
+      const retryAfter = Math.ceil((entry.timestamps[0] + config.windowMs - now) / 1000);
+      res.status(429).json({ error: "Too Many Requests", retryAfter });
       return;
     }
-    res.writeHead(200, {
-      "Content-Type": route.mime,
-      "X-Content-Type-Options": "nosniff",
-      "referrer-policy": "strict-origin-when-cross-origin",
-    });
-    res.end(content);
-  });
-
-  return true;
+    next();
+  };
 }
-
-function slidingWindowLog(req: IncomingMessage, res: ServerResponse<IncomingMessage>): boolean {
-  if (IS_TEST) return true;
-
-  const ip = req.socket.remoteAddress;
-  const now = Date.now();
-
-  let timestamps = (logs.get(ip) || []).filter((ts: number) => now - ts < WINDOW_SIZE);
-  timestamps.push(now);
-
-  logs.set(ip, timestamps);
-
-  if (timestamps.length > MAX_REQUESTS) {
-    const retryAfter = Math.ceil((timestamps[0] + WINDOW_SIZE - now) / 1000);
-    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(retryAfter) });
-    res.end(JSON.stringify({ error: "Too Many Requests", retryAfter }));
-    return false;
-  } else return true;
-}
-
-const server = createServer((req, res) => {
-  const { headers, method, url } = req;
-
-  if (serveStatic(url, res)) return;
-  if (!slidingWindowLog(req, res)) return;
-
-  const normalizedURL = url?.replace(/\/\d+$/, "/:id");
-  const taskID = url?.split("/").pop();
-
-  switch (`${method} ${normalizedURL}`) {
-    case "GET /api/tasks":
-      handleGetTasksQuery(req, res);
-      break;
-
-    case "POST /api/login":
-      handleLoginQuery(req, res);
-
-      break;
-
-    case "POST /api/register":
-      handleRegistrationQuery(req, res);
-      break;
-
-    case "POST /api/tasks":
-      handleAddTaskQuery(req, res);
-      break;
-
-    case "PUT /api/tasks/:id":
-      markTaskAsDone(req, res, taskID);
-      break;
-
-    case "PATCH /api/tasks/:id":
-      editTaskDescription(req, res, taskID);
-      break;
-
-    case "DELETE /api/sessions":
-      invalidateUserSession(req, res);
-      break;
-
-    case "DELETE /api/tasks/:id":
-      handleDeleteTaskQuery(req, res, taskID);
-      break;
-
-    default:
-      res.statusCode = 404;
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("404 Not Found");
-      break;
-  }
-});
 
 setInterval(() => {
   const now = Date.now();
-  for (const [ip, timestamps] of logs) {
-    const fresh = timestamps.filter((ts: number) => now - ts < WINDOW_SIZE);
-    fresh.length ? logs.set(ip, fresh) : logs.delete(ip);
+  for (const [key, entry] of logs) {
+    const fresh = entry.timestamps.filter((ts) => now - ts < entry.windowMs);
+    fresh.length ? (entry.timestamps = fresh) : logs.delete(key);
   }
-}, WINDOW_SIZE);
+}, 60 * 1000);
 
-server.listen(PORT, HOST, () => {
-  console.log(`Server is running at http://${HOST}:${PORT}`);
+app.use("/api/login", rateLimiter(RATE_LIMIT.endpoints["/login"]));
+app.use("/api/register", rateLimiter(RATE_LIMIT.endpoints["/register"]));
+
+app.use("/api", rateLimiter({ windowMs: RATE_LIMIT.windowMs, maxRequests: RATE_LIMIT.maxRequests }));
+
+app.use(
+  express.static("public", {
+    setHeaders: (res, path) => {
+      if (path.endsWith(".html")) {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+      }
+    },
+  }),
+);
+
+app.use("/api", authRouter);
+app.use("/api/tasks", taskRouter);
+
+app.listen(PORT, () => {
+  console.log(`Server on: ${PORT}`);
 });

@@ -1,8 +1,8 @@
-import { ServerResponse, IncomingMessage } from "node:http";
+import express, { type Response, type Request } from "express";
 import { MAX_BODY_SIZE, parseCookie, User } from "./helpers";
 import { getSessionInfo, insertTaskData, getTasks, deleteTask, markAsComplete, updateTask } from "./database";
 
-export async function handleAddTaskQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>): Promise<void> {
+export async function handleAddTaskQuery(req: Request, res: Response): Promise<void> {
   let body: Buffer[] = [];
   let bodySize = 0;
 
@@ -69,7 +69,7 @@ export async function handleAddTaskQuery(req: IncomingMessage, res: ServerRespon
     });
 }
 
-export function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<IncomingMessage>) {
+export function handleGetTasksQuery(req: Request, res: Response) {
   const cookies = parseCookie(req.headers.cookie);
   const sessionID = cookies["session_id"];
 
@@ -100,11 +100,7 @@ export function handleGetTasksQuery(req: IncomingMessage, res: ServerResponse<In
   }
 }
 
-function checkSessionValidity(
-  req: IncomingMessage,
-  res: ServerResponse<IncomingMessage>,
-  taskIDStr: string | undefined,
-): boolean {
+function checkSessionValidity(req: Request, res: Response, taskIDStr: string | undefined): boolean {
   const taskID = Number(taskIDStr);
 
   if (!taskID || isNaN(taskID)) {
@@ -125,11 +121,7 @@ function checkSessionValidity(
   return true;
 }
 
-export function handleDeleteTaskQuery(
-  req: IncomingMessage,
-  res: ServerResponse<IncomingMessage>,
-  taskIDStr: string | undefined,
-) {
+export function handleDeleteTaskQuery(req: Request, res: Response, taskIDStr: string | undefined) {
   if (!checkSessionValidity(req, res, taskIDStr)) return;
 
   const taskID = Number(taskIDStr);
@@ -162,11 +154,7 @@ export function handleDeleteTaskQuery(
   }
 }
 
-export function markTaskAsDone(
-  req: IncomingMessage,
-  res: ServerResponse<IncomingMessage>,
-  taskIDStr: string | undefined,
-) {
+export function markTaskAsDone(req: Request, res: Response, taskIDStr: string | undefined) {
   if (!checkSessionValidity(req, res, taskIDStr)) return;
 
   const taskID = Number(taskIDStr);
@@ -199,11 +187,7 @@ export function markTaskAsDone(
   }
 }
 
-export async function editTaskDescription(
-  req: IncomingMessage,
-  res: ServerResponse<IncomingMessage>,
-  taskIDStr: string | undefined,
-) {
+export async function editTaskDescription(req: Request, res: Response, taskIDStr: string | undefined) {
   let body: Buffer[] = [];
   let bodySize = 0;
 

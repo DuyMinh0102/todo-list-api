@@ -1,4 +1,4 @@
-const BASE = process.env.BASE_URL || "http://localhost:3000";
+const BASE = process.env.BASE_URL || "http://localhost:8080";
 const TOTAL = 100000000000000;
 
 async function hitLogin(i) {
